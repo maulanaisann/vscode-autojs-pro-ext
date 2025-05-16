@@ -1,0 +1,82 @@
+"ui";
+
+auto.waitFor();
+toast("Bot inDriver dimulai...");
+
+const HARGA_AWAL = 12000;
+const MAKS_JARAK_KM = 7;
+const AREA_DILARANG = ["Gunung", "Perbukitan"];
+
+let historyOrder = ""; // Buat deteksi apakah sudah ditawar sebelumnya
+let terakhirTawar = 0;
+
+while (true) {
+    let tombol = textMatches(/Tawarkan harga|Tawar/i).findOne(5000);
+    if (tombol) {
+        let parent = tombol.parent();
+        if (parent) {
+            let semuaTeks = parent.findOne(className("android.widget.TextView")).text();
+            let jarak = extractJarak(semuaTeks);
+            let tujuan = semuaTeks;
+
+            if (jarak <= MAKS_JARAK_KM && !isAreaDilarang(tujuan)) {
+                if (semuaTeks !== historyOrder || Date.now() - terakhirTawar > 30000) {
+                    tombol.click();
+                    toast("Klik tawaran dengan jarak: " + jarak + " km");
+                    sleep(1500);
+
+                    let inputHarga = className("android.widget.EditText").findOne(3000);
+                    if (inputHarga) {
+                        inputHarga.setText(String(HARGA_AWAL));
+                        sleep(1000);
+                        let tombolKirim = text("Kirim").findOne(3000);
+                        if (tombolKirim) {
+                            tombolKirim.click();
+                            toast("Harga dikirim: Rp " + HARGA_AWAL);
+                            historyOrder = semuaTeks;
+                            terakhirTawar = Date.now();
+                        }
+                    }
+                }
+            } else {
+                toast("Tawaran tidak sesuai filter. Dilewati.");
+            }
+        }
+    }
+
+    // DETEKSI PENAWARAN DITERIMA
+    let diterima = textMatches(/Menuju penumpang|Menunggu penumpang|Tawaran diterima/i).findOnce();
+    if (diterima) {
+        toast("PENAWARAN DITERIMA!");
+        device.vibrate(500); // Getar 0.5 detik
+        playNotifikasi(); // Bunyi notif
+        sleep(10000); // Tunggu agar tidak spam
+    }
+
+    sleep(2000);
+}
+
+// FUNGSI TAMBAHAN
+function extractJarak(teks) {
+    let match = teks.match(/(\d+(?:\.\d+)?)\s?km/i);
+    return match ? parseFloat(match[1]) : 99;
+}
+
+function isAreaDilarang(teks) {
+    for (let kata of AREA_DILARANG) {
+        if (teks.toLowerCase().includes(kata.toLowerCase())) return true;
+    }
+    return false;
+}
+
+function playNotifikasi() {
+    try {
+        let media = new android.media.MediaPlayer();
+        media.setDataSource("/system/media/audio/ui/Effect_Tick.ogg");
+        media.setAudioStreamType(android.media.AudioManager.STREAM_NOTIFICATION);
+        media.prepare();
+        media.start();
+    } catch (e) {
+        toast("Notifikasi suara gagal: " + e);
+    }
+}
